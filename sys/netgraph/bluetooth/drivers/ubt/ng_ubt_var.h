@@ -166,6 +166,8 @@ usb_error_t	ubt_do_hci_request(struct usb_device *, struct ubt_hci_cmd *,
 
 extern	const STRUCT_USB_HOST_ID	ubt_rtl_devs[];
 extern	const size_t			ubt_rtl_devs_sizeof;
+extern	const STRUCT_USB_HOST_ID	ubt_qca_devs[];
+extern	const size_t			ubt_qca_devs_sizeof;
 
 extern	driver_t	ubt_driver;
 

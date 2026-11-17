@@ -1,0 +1,117 @@
+.\"-
+.\" SPDX-License-Identifier: BSD-2-Clause
+.\"
+.\" Copyright (c) 2026 Javier Mariosa
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+.\" ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+.\" FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+.\" LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+.\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+.\" SUCH DAMAGE.
+.\"
+.Dd November 17, 2026
+.Dt QCABTFW 8
+.Os
+.Sh NAME
+.Nm qcabtfw
+.Nd load firmware for Qualcomm Atheros QCA61x4 Bluetooth USB devices
+.Sh SYNOPSIS
+.Nm
+.Op Fl DI
+.Fl d Ar device_name
+.Op Fl f Ar firmware_path
+.Nm
+.Fl h
+.Sh DESCRIPTION
+The
+.Nm
+utility downloads firmware to the specified
+.Xr ugen 4
+device.
+.Pp
+This utility will
+.Em only
+work with Qualcomm Atheros QCA61x4
+.Pq Dq ROME
+based Bluetooth USB devices, such as the Bluetooth half of the QCA6174
+wireless adaptor.
+The identification is based on the USB vendor ID/product ID pair.
+.Pp
+These devices start from a ROM firmware and need two files before they
+can be used: a rampatch,
+.Pa rampatch_usb_XXXXXXXX.bin ,
+and an NVM configuration,
+.Pa nvm_usb_XXXXXXXX.bin ,
+where
+.Ar XXXXXXXX
+is the ROM version reported by the device.
+Both files are distributed in the
+.Pa qca
+directory of the linux-firmware collection.
+.Pp
+The
+.Nm
+utility queries the device to find out which parts are missing, downloads
+them and then resets the device so that
+.Xr ng_ubt 4
+attaches to it.
+It is normally started by
+.Xr devd 8
+when the device is plugged in.
+.Pp
+The options are as follows:
+.Bl -tag -width indent
+.It Fl D
+Enable verbose debugging.
+.It Fl d Ar device_name
+Specify
+.Xr ugen 4
+device name.
+.It Fl f Ar firmware_path
+Specify the directory containing the firmware files.
+The default is
+.Pa /usr/share/firmware/qcabt .
+.It Fl h
+Display usage message and exit.
+.It Fl I
+Enable informational debugging.
+.El
+.Sh FILES
+.Bl -tag -width "/usr/local/share/qcabt-firmware" -compact
+.It Pa /etc/devd/qcabtfw.conf
+.Xr devd 8
+rules that run
+.Nm
+on device attach.
+.It Pa /usr/local/share/qcabt-firmware
+Firmware directory used by the
+.Xr devd 8
+rules.
+.El
+.Sh EXIT STATUS
+.Ex -std
+.Sh SEE ALSO
+.Xr libusb 3 ,
+.Xr ng_ubt 4 ,
+.Xr ugen 4 ,
+.Xr devd 8
+.Sh HISTORY
+The
+.Nm
+utility first appeared in
+.Fx 16.0 .

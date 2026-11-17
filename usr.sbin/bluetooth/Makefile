@@ -19,6 +19,7 @@ SUBDIR+=	bcmfw
 SUBDIR+=	bthidcontrol
 SUBDIR+=	bthidd
 SUBDIR+=	iwmbtfw
+SUBDIR+=	qcabtfw
 SUBDIR+=	rtlbtfw
 .endif
 
