@@ -17,6 +17,7 @@ MAN=	aac.4 \
 	${_acpi_apple.4} \
 	${_acpi_asus.4} \
 	${_acpi_asus_wmi.4} \
+	${_acpi_dell.4} \
 	${_acpi_dock.4} \
 	acpi_einj.4 \
 	${_acpi_fujitsu.4} \
@@ -868,6 +869,7 @@ MLINKS+=xl.4 if_xl.4
 .if ${MACHINE_CPUARCH} == "amd64" || ${MACHINE_CPUARCH} == "i386"
 _acpi_asus.4=	acpi_asus.4
 _acpi_asus_wmi.4=	acpi_asus_wmi.4
+_acpi_dell.4=	acpi_dell.4
 _acpi_dock.4=	acpi_dock.4
 _acpi_fujitsu.4=acpi_fujitsu.4
 _acpi_hp.4=	acpi_hp.4

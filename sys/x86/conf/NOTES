@@ -153,6 +153,9 @@ device		acpi_wmi
 # ACPI Asus Extras (LCD backlight/brightness, video output, etc.)
 device		acpi_asus
 
+# ACPI extras driver for Dell laptops (battery charge control)
+device		acpi_dell
+
 # ACPI Fujitsu Extras (Buttons)
 device		acpi_fujitsu
 

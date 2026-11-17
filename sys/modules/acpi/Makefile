@@ -2,6 +2,7 @@
 SUBDIR=	\
 	acpi_asus \
 	acpi_asus_wmi \
+	acpi_dell \
 	acpi_dock \
 	acpi_fujitsu \
 	acpi_hp \
