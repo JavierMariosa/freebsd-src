@@ -81,6 +81,8 @@ ACPI_MODULE_NAME("IBM")
 #define ACPI_IBM_METHOD_HANDLEREVENTS	14
 #define ACPI_IBM_METHOD_MICMUTE_LED	15
 #define ACPI_IBM_METHOD_PRIVACYGUARD	16
+#define ACPI_IBM_METHOD_CHARGE_START	17
+#define ACPI_IBM_METHOD_CHARGE_STOP	18
 
 /* Hotkeys/Buttons */
 #define IBM_RTC_HOTKEY1			0x64
@@ -131,6 +133,10 @@ ACPI_MODULE_NAME("IBM")
 #define IBM_NAME_THERMAL_UPDT		"UPDT"
 #define IBM_NAME_PRIVACYGUARD_GET	"GSSS"
 #define IBM_NAME_PRIVACYGUARD_SET	"SSSS"
+#define IBM_NAME_CHARGE_START_GET	"BCTG"
+#define IBM_NAME_CHARGE_START_SET	"BCCS"
+#define IBM_NAME_CHARGE_STOP_GET	"BCSG"
+#define IBM_NAME_CHARGE_STOP_SET	"BCSS"
 
 #define IBM_NAME_EVENTS_STATUS_GET	"DHKC"
 #define IBM_NAME_EVENTS_MASK_GET	"DHKN"
@@ -158,6 +164,11 @@ ACPI_MODULE_NAME("IBM")
 /* Device-specific register flags */
 #define IBM_FLAG_PRIVACYGUARD_DEVICE_PRESENT	0x10000
 #define IBM_FLAG_PRIVACYGUARD_ON	0x1
+#define IBM_FLAG_CHARGE_ERROR		(1U << 31)
+#define IBM_FLAG_CHARGE_SUPPORTED	(1 << 8)
+#define IBM_MASK_CHARGE_VALUE		0xff
+#define IBM_CHARGE_BATTERY_PRIMARY	1
+#define IBM_CHARGE_BATTERY_SHIFT	8
 
 #define ABS(x) (((x) < 0)? -(x) : (x))
 
@@ -290,6 +301,18 @@ static struct {
 		.method		= ACPI_IBM_METHOD_PRIVACYGUARD,
 		.description	= "PrivacyGuard enable",
 	},
+	{
+		.name		= "charge_start_threshold",
+		.method		= ACPI_IBM_METHOD_CHARGE_START,
+		.description	= "Battery level (percent) below which "
+				  "charging starts, 0 for firmware default",
+	},
+	{
+		.name		= "charge_stop_threshold",
+		.method		= ACPI_IBM_METHOD_CHARGE_STOP,
+		.description	= "Battery level (percent) at which "
+				  "charging stops",
+	},
 	{ NULL, 0, NULL, 0 }
 };
 
@@ -352,6 +375,8 @@ static int	acpi_ibm_mute_set(struct acpi_ibm_softc *sc, int arg);
 static int	acpi_ibm_privacyguard_get(struct acpi_ibm_softc *sc);
 static ACPI_STATUS	acpi_ibm_privacyguard_set(struct acpi_ibm_softc *sc, int arg);
 static ACPI_STATUS	acpi_ibm_privacyguard_acpi_call(struct acpi_ibm_softc *sc, bool write, int *arg);
+static int	acpi_ibm_charge_get(struct acpi_ibm_softc *sc, int method);
+static int	acpi_ibm_charge_set(struct acpi_ibm_softc *sc, int method, int arg);
 
 static int	acpi_status_to_errno(ACPI_STATUS status);
 
@@ -884,6 +909,11 @@ acpi_ibm_sysctl_get(struct acpi_ibm_softc *sc, int method)
 	case ACPI_IBM_METHOD_PRIVACYGUARD:
 		val = acpi_ibm_privacyguard_get(sc);
 		break;
+
+	case ACPI_IBM_METHOD_CHARGE_START:
+	case ACPI_IBM_METHOD_CHARGE_STOP:
+		val = acpi_ibm_charge_get(sc, method);
+		break;
 	}
 
 	return (val);
@@ -943,6 +973,10 @@ acpi_ibm_sysctl_set(struct acpi_ibm_softc *sc, int method, int arg)
 	case ACPI_IBM_METHOD_PRIVACYGUARD:
 		return (acpi_status_to_errno(acpi_ibm_privacyguard_set(sc, arg)));
 		break;
+
+	case ACPI_IBM_METHOD_CHARGE_START:
+	case ACPI_IBM_METHOD_CHARGE_STOP:
+		return (acpi_ibm_charge_set(sc, method, arg));
 
 	case ACPI_IBM_METHOD_FANLEVEL:
 		if (arg < 0 || arg > 8)
@@ -1084,6 +1118,10 @@ acpi_ibm_sysctl_init(struct acpi_ibm_softc *sc, int method)
 
 	case ACPI_IBM_METHOD_PRIVACYGUARD:
 		return (acpi_ibm_privacyguard_get(sc) != -1);
+
+	case ACPI_IBM_METHOD_CHARGE_START:
+	case ACPI_IBM_METHOD_CHARGE_STOP:
+		return (acpi_ibm_charge_get(sc, method) != -1);
 	}
 	return (FALSE);
 }
@@ -1354,6 +1392,93 @@ acpi_ibm_privacyguard_set(struct acpi_ibm_softc *sc, int arg)
 		return (AE_BAD_PARAMETER);
 
 	return (acpi_ibm_privacyguard_acpi_call(sc, true, &arg));
+}
+
+/*
+ * Battery charge thresholds of the primary battery.  The HKEY methods take
+ * and return a single integer: bit 31 of the result flags an error, bit 8
+ * flags that the threshold is supported and the low byte is the threshold
+ * in percent.  A stop threshold of 0 means "firmware default", i.e. 100%.
+ */
+static ACPI_STATUS
+acpi_ibm_charge_acpi_call(struct acpi_ibm_softc *sc, char *name, int arg,
+    UINT32 *res)
+{
+	ACPI_OBJECT		Arg;
+	ACPI_OBJECT_LIST	Args;
+	ACPI_STATUS		status;
+	ACPI_OBJECT		out_obj;
+	ACPI_BUFFER		result;
+
+	Arg.Type = ACPI_TYPE_INTEGER;
+	Arg.Integer.Value = arg;
+	Args.Count = 1;
+	Args.Pointer = &Arg;
+	result.Length = sizeof(out_obj);
+	result.Pointer = &out_obj;
+
+	status = AcpiEvaluateObjectTyped(sc->handle, name, &Args, &result,
+	    ACPI_TYPE_INTEGER);
+	if (ACPI_FAILURE(status))
+		return (status);
+	if (out_obj.Integer.Value & IBM_FLAG_CHARGE_ERROR)
+		return (AE_ERROR);
+	*res = out_obj.Integer.Value;
+
+	return (AE_OK);
+}
+
+/*
+ * Returns -1 if the threshold is not supported.
+ */
+static int
+acpi_ibm_charge_get(struct acpi_ibm_softc *sc, int method)
+{
+	ACPI_STATUS status;
+	UINT32 res;
+	int val;
+
+	status = acpi_ibm_charge_acpi_call(sc,
+	    method == ACPI_IBM_METHOD_CHARGE_START ?
+	    IBM_NAME_CHARGE_START_GET : IBM_NAME_CHARGE_STOP_GET,
+	    IBM_CHARGE_BATTERY_PRIMARY, &res);
+	if (ACPI_FAILURE(status) || (res & IBM_FLAG_CHARGE_SUPPORTED) == 0)
+		return (-1);
+
+	val = res & IBM_MASK_CHARGE_VALUE;
+	if (method == ACPI_IBM_METHOD_CHARGE_STOP && val == 0)
+		val = 100;
+
+	return (val);
+}
+
+static int
+acpi_ibm_charge_set(struct acpi_ibm_softc *sc, int method, int arg)
+{
+	ACPI_STATUS status;
+	UINT32 res;
+	int other;
+
+	if (method == ACPI_IBM_METHOD_CHARGE_START) {
+		/* The start threshold must stay below the stop threshold. */
+		other = acpi_ibm_charge_get(sc, ACPI_IBM_METHOD_CHARGE_STOP);
+		if (arg < 0 || arg > 99 || (other != -1 && arg >= other))
+			return (EINVAL);
+	} else {
+		other = acpi_ibm_charge_get(sc, ACPI_IBM_METHOD_CHARGE_START);
+		if (arg < 1 || arg > 100 || (other != -1 && arg <= other))
+			return (EINVAL);
+		if (arg == 100)
+			arg = 0;
+	}
+
+	status = acpi_ibm_charge_acpi_call(sc,
+	    method == ACPI_IBM_METHOD_CHARGE_START ?
+	    IBM_NAME_CHARGE_START_SET : IBM_NAME_CHARGE_STOP_SET,
+	    arg | (IBM_CHARGE_BATTERY_PRIMARY << IBM_CHARGE_BATTERY_SHIFT),
+	    &res);
+
+	return (acpi_status_to_errno(status));
 }
 
 static int

@@ -23,7 +23,7 @@
 .\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 .\" SUCH DAMAGE.
 .\"
-.Dd June 22, 2026
+.Dd November 17, 2026
 .Dt ACPI_IBM 4
 .Os
 .Sh NAME
@@ -280,6 +280,21 @@ Note that this does not mean that the microphone input is muted.
 Indicates, whether the ThinkLight keyboard light is activated or not.
 .It Va dev.acpi_ibm.0.bluetooth
 Toggle Bluetooth chip activity.
+.It Va dev.acpi_ibm.0.charge_start_threshold
+Battery level, in percent, below which the primary battery starts charging
+when AC power is connected.
+Valid values are 0-99 and must be lower than
+.Va charge_stop_threshold ;
+0 selects the firmware default.
+Only present on models whose firmware supports it.
+.It Va dev.acpi_ibm.0.charge_stop_threshold
+Battery level, in percent, at which the primary battery stops charging.
+Valid values are 1-100 and must be higher than
+.Va charge_start_threshold .
+Limiting the charge to about 80% reduces battery wear on machines that are
+mostly used on AC power.
+The firmware keeps the setting across reboots.
+Only present on models whose firmware supports it.
 .It Va dev.acpi_ibm.0.wlan
 (read-only)
 Indicates whether the WLAN chip is active or not.
