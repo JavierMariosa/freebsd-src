@@ -32,7 +32,11 @@
  * The firmware exposes settings as "tokens".  The list of tokens (ID,
  * location and value) is published in the SMBIOS table as structures of
  * type 0xDA, and tokens are read and written by passing a request buffer to
- * a WMI method.  Currently only the battery charge settings are supported.
+ * a WMI method.  The battery charge settings and the microphone mute LED
+ * are controlled that way.
+ *
+ * Presses of the special keys are reported by the firmware as WMI events
+ * and are passed on to devd(8).
  */
 
 #include <sys/cdefs.h>
@@ -41,6 +45,7 @@
 #include <sys/systm.h>
 #include <sys/kernel.h>
 #include <sys/bus.h>
+#include <sys/devctl.h>
 #include <sys/malloc.h>
 #include <sys/module.h>
 #include <sys/rman.h>
@@ -66,6 +71,7 @@ static MALLOC_DEFINE(M_ACPIDELL, "acpi_dell", "Dell SMBIOS WMI data");
 
 #define ACPI_DELL_SMBIOS_GUID	"A80593CE-A997-11DA-B012-B622A1EF5492"
 #define ACPI_DELL_DESC_GUID	"8D9DDCBC-A997-11DA-B012-B622A1EF5492"
+#define ACPI_DELL_EVENT_GUID	"9DBB5994-A997-11DA-B012-B622A1EF5492"
 
 /* WMI descriptor: "DELL WMI", interface version, buffer size, hotfix. */
 #define DELL_DESC_SIGNATURE	"DELL WMI"
@@ -92,6 +98,10 @@ static MALLOC_DEFINE(M_ACPIDELL, "acpi_dell", "Dell SMBIOS WMI data");
 #define DELL_TOKEN_BAT_EXPRESS		0x0347
 #define DELL_TOKEN_BAT_CUSTOM_START	0x0349
 #define DELL_TOKEN_BAT_CUSTOM_END	0x034a
+
+/* Microphone mute LED tokens. */
+#define DELL_TOKEN_MIC_MUTE_ENABLE	0x0364
+#define DELL_TOKEN_MIC_MUTE_DISABLE	0x0365
 
 #define DELL_CHARGE_START_MIN	50
 #define DELL_CHARGE_START_MAX	95
@@ -138,6 +148,8 @@ struct acpi_dell_softc {
 
 	struct dell_wmi_buffer		*buf;
 	uint32_t			buf_size;
+
+	bool				has_events;
 };
 
 static const struct {
@@ -481,6 +493,89 @@ out:
 	return (error);
 }
 
+/*
+ * The LED is switched by writing the value of the "enable" or of the
+ * "disable" token to that token's location.
+ */
+static int
+acpi_dell_mic_led_sysctl(SYSCTL_HANDLER_ARGS)
+{
+	struct acpi_dell_softc *sc = oidp->oid_arg1;
+	struct dell_smbios_token *token;
+	uint32_t val;
+	int arg, error;
+
+	ACPI_SERIAL_BEGIN(dell);
+	token = acpi_dell_find_token(sc, DELL_TOKEN_MIC_MUTE_ENABLE);
+	error = acpi_dell_token_read(sc, DELL_TOKEN_MIC_MUTE_ENABLE, &val);
+	if (error != 0)
+		goto out;
+
+	arg = (val == token->value);
+	error = sysctl_handle_int(oidp, &arg, 0, req);
+	if (error != 0 || req->newptr == NULL)
+		goto out;
+	if (arg < 0 || arg > 1) {
+		error = EINVAL;
+		goto out;
+	}
+
+	token = acpi_dell_find_token(sc, arg ? DELL_TOKEN_MIC_MUTE_ENABLE :
+	    DELL_TOKEN_MIC_MUTE_DISABLE);
+	error = acpi_dell_token_write(sc, token->id, token->value);
+out:
+	ACPI_SERIAL_END(dell);
+	return (error);
+}
+
+/*
+ * Hotkey events.  The event data is an array of 16-bit words holding one
+ * or more records, each made of a length (in words, not counting itself),
+ * an event type and the event codes.  Every code is handed to devd(8) as
+ *
+ *	system=ACPI subsystem=DELL type=<event type> code=<event code>
+ */
+static void
+acpi_dell_notify(ACPI_HANDLE h, UINT32 notify, void *context)
+{
+	device_t dev = context;
+	struct acpi_dell_softc *sc = device_get_softc(dev);
+	ACPI_BUFFER response = { ACPI_ALLOCATE_BUFFER, NULL };
+	ACPI_OBJECT *obj;
+	char type[16], data[32];
+	uint16_t word, len, evtype;
+	uint32_t i, j, nwords;
+
+	if (ACPI_FAILURE(ACPI_WMI_GET_EVENT_DATA(sc->wmi_dev, notify,
+	    &response)))
+		return;
+	obj = response.Pointer;
+	if (obj == NULL || obj->Type != ACPI_TYPE_BUFFER)
+		goto out;
+
+	nwords = obj->Buffer.Length / sizeof(word);
+	for (i = 0; i < nwords; i += len + 1) {
+		memcpy(&len, obj->Buffer.Pointer + i * sizeof(word),
+		    sizeof(len));
+		if (len == 0 || i + len >= nwords)
+			break;
+		if (len < 2)
+			continue;
+		memcpy(&evtype, obj->Buffer.Pointer + (i + 1) * sizeof(word),
+		    sizeof(evtype));
+		snprintf(type, sizeof(type), "0x%04x", evtype);
+		for (j = i + 2; j <= i + len; j++) {
+			memcpy(&word, obj->Buffer.Pointer + j * sizeof(word),
+			    sizeof(word));
+			snprintf(data, sizeof(data), "code=0x%04x", word);
+			devctl_notify("ACPI", "DELL", type, data);
+		}
+	}
+out:
+	if (response.Pointer != NULL)
+		AcpiOsFree(response.Pointer);
+}
+
 static void
 acpi_dell_identify(driver_t *driver, device_t parent)
 {
@@ -561,6 +656,21 @@ acpi_dell_attach(device_t dev)
 		    "Battery level (percent) at which charging stops "
 		    "in custom charge mode");
 	}
+	if (acpi_dell_find_token(sc, DELL_TOKEN_MIC_MUTE_ENABLE) != NULL &&
+	    acpi_dell_find_token(sc, DELL_TOKEN_MIC_MUTE_DISABLE) != NULL) {
+		SYSCTL_ADD_PROC(ctx, children, OID_AUTO, "mic_led",
+		    CTLTYPE_INT | CTLFLAG_RW | CTLFLAG_MPSAFE, sc, 0,
+		    acpi_dell_mic_led_sysctl, "I", "Microphone mute LED");
+	}
+
+	if (ACPI_WMI_PROVIDES_GUID_STRING(sc->wmi_dev, ACPI_DELL_EVENT_GUID)) {
+		if (ACPI_FAILURE(ACPI_WMI_INSTALL_EVENT_HANDLER(sc->wmi_dev,
+		    ACPI_DELL_EVENT_GUID, acpi_dell_notify, dev)))
+			device_printf(dev,
+			    "could not install event handler\n");
+		else
+			sc->has_events = true;
+	}
 
 	return (0);
 }
@@ -571,6 +681,9 @@ acpi_dell_detach(device_t dev)
 	struct acpi_dell_softc *sc;
 
 	sc = device_get_softc(dev);
+	if (sc->has_events)
+		ACPI_WMI_REMOVE_EVENT_HANDLER(sc->wmi_dev,
+		    ACPI_DELL_EVENT_GUID);
 	free(sc->buf, M_ACPIDELL);
 	free(sc->tokens, M_ACPIDELL);
 

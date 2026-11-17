@@ -56,7 +56,11 @@ The settings the firmware offers are discovered from the token table in the
 .Xr smbios 4
 data, so only the variables supported by the machine are created.
 .Pp
-Currently the driver supports the battery charge settings.
+The driver supports the battery charge settings and the microphone mute
+LED.
+It also reports presses of the special keys that the firmware delivers as
+WMI events to
+.Xr devd 8 .
 .Sh SYSCTL VARIABLES
 The following sysctls are currently implemented:
 .Bl -tag -width indent
@@ -84,10 +88,25 @@ Battery level, in percent, at which charging stops in
 mode.
 Valid values are 55-100 and must be at least 5 higher than
 .Va charge_start_threshold .
+.It Va dev.acpi_dell.0.mic_led
+State of the microphone mute LED, 0 for off and 1 for on.
+Note that this only switches the LED, it does not mute the microphone.
 .El
 .Pp
 The firmware stores these settings, so they persist across reboots and
 also apply while the machine is powered off.
+.Sh EVENTS
+Hotkey events are sent to
+.Xr devd 8
+with the system
+.Qq ACPI ,
+the subsystem
+.Qq DELL ,
+the type set to the event type reported by the firmware, and a
+.Va code
+variable holding the event code, both as four digit hexadecimal numbers.
+Most keys are of type
+.Qq 0x0010 .
 .Sh EXAMPLES
 Keep the battery between 50% and 80% on a laptop that is mostly used on AC
 power:
@@ -96,10 +115,24 @@ sysctl dev.acpi_dell.0.charge_mode=custom
 sysctl dev.acpi_dell.0.charge_stop_threshold=80
 sysctl dev.acpi_dell.0.charge_start_threshold=50
 .Ed
+.Pp
+A
+.Xr devd.conf 5
+entry that logs every hotkey event, which is useful to find out the code
+of a key:
+.Bd -literal -offset indent
+notify 10 {
+	match "system"		"ACPI";
+	match "subsystem"	"DELL";
+	action "logger Dell hotkey type=$type code=$code";
+};
+.Ed
 .Sh SEE ALSO
 .Xr acpi 4 ,
 .Xr acpi_wmi 4 ,
 .Xr smbios 4 ,
+.Xr devd.conf 5 ,
+.Xr devd 8 ,
 .Xr sysctl 8
 .Sh HISTORY
 The
