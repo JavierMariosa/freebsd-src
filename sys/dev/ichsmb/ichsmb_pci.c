@@ -103,6 +103,7 @@
 #define	ID_LEWISBURG2			0xa223
 #define	ID_KABYLAKE			0xa2a3
 #define	ID_CANNONLAKE			0xa323
+#define	ID_CANNONLAKELP			0x9da3
 #define	ID_COMETLAKE			0x02a3
 #define	ID_COMETLAKE2			0x06a3
 #define	ID_TIGERLAKE			0xa0a3
@@ -238,6 +239,9 @@ static const struct pci_device_table ichsmb_devices[] = {
 	{ PCI_DEV(PCI_VENDOR_INTEL, ID_CANNONLAKE),
 	  .driver_data = (uintptr_t)ICHSMB_FEATURE_BLOCK_BUFFER,
 	  PCI_DESCR("Intel Cannon Lake SMBus controller") },
+	{ PCI_DEV(PCI_VENDOR_INTEL, ID_CANNONLAKELP),
+	  .driver_data = (uintptr_t)ICHSMB_FEATURE_BLOCK_BUFFER,
+	  PCI_DESCR("Intel Cannon Lake-LP SMBus controller") },
 	{ PCI_DEV(PCI_VENDOR_INTEL, ID_COMETLAKE),
 	  .driver_data = (uintptr_t)ICHSMB_FEATURE_BLOCK_BUFFER,
 	  PCI_DESCR("Intel Comet Lake SMBus controller") },
