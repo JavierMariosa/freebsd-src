@@ -49,6 +49,8 @@ extern struct voss_backend voss_backend_oss_rec;
 extern struct voss_backend voss_backend_oss_play;
 extern struct voss_backend voss_backend_bt_rec;
 extern struct voss_backend voss_backend_bt_play;
+extern struct voss_backend voss_backend_hfp_rec;
+extern struct voss_backend voss_backend_hfp_play;
 extern struct voss_backend voss_backend_sndio_rec;
 extern struct voss_backend voss_backend_sndio_play;
 

@@ -1674,6 +1674,8 @@ voss_rx_backend_refresh(void)
 	/* setup RX backend */
 	if (strcmp(voss_dsp_rx_device, "/dev/null") == 0) {
 		voss_rx_backend = voss_load_backend("/usr", "null", "rec");
+	} else if (strstr(voss_dsp_rx_device, "/dev/bluetooth-hfp/") == voss_dsp_rx_device) {
+		voss_rx_backend = voss_load_backend("/usr", "hfp", "rec");
 	} else if (strstr(voss_dsp_rx_device, "/dev/bluetooth/") == voss_dsp_rx_device) {
 		voss_rx_backend = voss_load_backend("/usr/local", "bt", "rec");
 	} else if (strstr(voss_dsp_rx_device, "/dev/sndio/") == voss_dsp_rx_device) {
@@ -1689,6 +1691,8 @@ voss_tx_backend_refresh(void)
 	/* setup TX backend */
 	if (strcmp(voss_dsp_tx_device, "/dev/null") == 0) {
 		voss_tx_backend = voss_load_backend("/usr", "null", "play");
+	} else if (strstr(voss_dsp_tx_device, "/dev/bluetooth-hfp/") == voss_dsp_tx_device) {
+		voss_tx_backend = voss_load_backend("/usr", "hfp", "play");
 	} else if (strstr(voss_dsp_tx_device, "/dev/bluetooth/") == voss_dsp_tx_device) {
 		voss_tx_backend = voss_load_backend("/usr/local", "bt", "play");
 	} else if (strstr(voss_dsp_tx_device, "/dev/sndio/") == voss_dsp_tx_device) {

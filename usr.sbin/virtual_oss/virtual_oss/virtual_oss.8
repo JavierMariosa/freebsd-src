@@ -23,7 +23,7 @@
 .\" SUCH DAMAGE.
 .\"
 .\"
-.Dd June 24, 2026
+.Dd November 17, 2026
 .Dt VIRTUAL_OSS 8
 .Os
 .Sh NAME
@@ -183,6 +183,19 @@ Suffix after
 .Pa /dev/bluetooth/
 is Bluetooth device address or alias as configured in
 .Xr bluetooth.hosts 5 .
+.Pp
+The
+.Pa /dev/bluetooth/
+backend uses the A2DP profile, which gives high quality playback but
+cannot use the microphone of a headset.
+Specifying path prefixed by
+.Pa /dev/bluetooth-hfp/
+instead, with the same kind of suffix, uses the Hands-Free or Headset
+profile, which carries audio in both directions at telephone quality and
+is meant for voice calls.
+That backend requires a sample rate of 8000 Hz, 16-bit samples and works
+on a single channel.
+The headset has to be paired with the computer first.
 .It Fl w Ar name
 Create a WAV file format compatible companion device by given name.
 This option should be specified before the -d and -l options.
@@ -321,6 +334,13 @@ Connect to a bluetooth audio headset, playback and recording:
 virtual_oss \\
 	-C 2 -c 2 -r 48000 -b 16 -s 4ms \\
 	-f /dev/bluetooth/xx:xx:xx:xx:xx:xx -d dsp
+.Ed
+.Pp
+Use the microphone and speakers of a bluetooth headset for voice calls:
+.Bd -literal -offset indent
+virtual_oss \\
+	-C 1 -c 1 -r 8000 -b 16 -s 20ms \\
+	-f /dev/bluetooth-hfp/xx:xx:xx:xx:xx:xx -d dsp.call
 .Ed
 .Pp
 Create recording device which outputs a WAV-formatted file:

@@ -156,7 +156,7 @@ SUBDIR_DEPEND_liblzma= libthr
 SUBDIR_DEPEND_libpcap= ofed
 .endif
 SUBDIR_DEPEND_nss_tacplus= libtacplus
-SUBDIR_DEPEND_virtual_oss= libsamplerate
+SUBDIR_DEPEND_virtual_oss= libbluetooth libsamplerate libsdp
 
 # NB: keep these sorted by MK_* knobs
 
