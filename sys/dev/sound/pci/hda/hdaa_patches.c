@@ -337,8 +337,9 @@ hdac_pin_patch(struct hdaa_widget *w)
 			patch_str = "as=1 seq=15 device=Headphones";
 			break;
 		}
-	} else if (id == HDA_CODEC_ALC256 && (subid == DELL_I7577_SUBVENDOR ||
-	    subid == DELL_L7480_SUBVENDOR)) {
+	} else if ((id == HDA_CODEC_ALC256 && (subid == DELL_I7577_SUBVENDOR ||
+	    subid == DELL_L7480_SUBVENDOR)) ||
+	    (id == HDA_CODEC_ALC295 && subid == DELL_L7400_SUBVENDOR)) {
 		switch (nid) {
 		case 20:
 			patch_str = "as=1 seq=0";
